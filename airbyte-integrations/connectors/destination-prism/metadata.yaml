@@ -1,0 +1,41 @@
+data:
+  connectorBuildOptions:
+    baseImage: docker.io/airbyte/python-connector-base:4.0.2@sha256:9fdb1888c4264cf6fee473649ecb593f56f58e5d0096a87ee0b231777e2e3e73
+  connectorSubtype: database
+  connectorType: destination
+  definitionId: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+  dockerImageTag: 0.1.0
+  dockerRepository: airbyte/destination-prism
+  githubIssueLabel: destination-prism
+  icon: prism.svg
+  license: MIT
+  name: Prism
+  registryOverrides:
+    oss:
+      enabled: true
+  releaseStage: alpha
+  resourceRequirements:
+    jobSpecific:
+      - jobType: check_connection
+        resourceRequirements:
+          memory_limit: 512Mi
+          memory_request: 512Mi
+      - jobType: sync
+        resourceRequirements:
+          memory_limit: 2Gi
+          memory_request: 2Gi
+  documentationUrl: https://github.com/cleartax/prism-cdp/tree/main/prism-connectors/destination-prism
+  tags:
+    - language:python
+    - cdk:python
+  supportLevel: community
+  connectorTestSuitesOptions:
+    - suite: unitTests
+    - suite: integrationTests
+      testSecrets:
+        - name: SECRET_DESTINATION_PRISM_CREDS
+          fileName: config.json
+          secretStore:
+            type: GSM
+            alias: airbyte-connector-testing-secret-store
+metadataSpecVersion: "1.0"

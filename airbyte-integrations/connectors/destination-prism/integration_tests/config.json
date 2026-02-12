@@ -1,0 +1,6 @@
+{
+  "grpc_url": "grpc://localhost:8815",
+  "http_url": "http://localhost:9815",
+  "token": "prism_cs_test_test1_3e573438858f8f23d37393896815e5821d5f125bf7571251d8b4a409e3d085bc",
+  "tenant_id": "fe6cc751-b790-44c0-9f0c-b2a33a1a950a"
+}

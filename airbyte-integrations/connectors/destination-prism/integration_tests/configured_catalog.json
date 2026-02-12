@@ -1,0 +1,26 @@
+{
+  "streams": [
+    {
+      "stream": {
+        "name": "users",
+        "json_schema": {
+          "type": "object",
+          "properties": {
+            "id": {"type": "integer"},
+            "name": {"type": "string"},
+            "email": {"type": ["null", "string"]},
+            "amount": {"type": "number"},
+            "is_active": {"type": "boolean"},
+            "created_at": {"type": "string", "format": "date-time"},
+            "tags": {"type": "array", "items": {"type": "string"}},
+            "metadata": {"type": "object"}
+          }
+        },
+        "supported_sync_modes": ["full_refresh", "incremental"],
+        "source_defined_primary_key": [["id"]]
+      },
+      "sync_mode": "incremental",
+      "destination_sync_mode": "append"
+    }
+  ]
+}

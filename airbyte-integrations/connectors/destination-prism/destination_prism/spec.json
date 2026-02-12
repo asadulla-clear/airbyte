@@ -1,0 +1,64 @@
+{
+  "documentationUrl": "https://github.com/cleartax/prism-cdp/tree/main/prism-connectors/destination-prism",
+  "connectionSpecification": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Prism Destination Spec",
+    "type": "object",
+    "required": ["grpc_url", "http_url", "token", "tenant_id"],
+    "additionalProperties": true,
+    "properties": {
+      "grpc_url": {
+        "type": "string",
+        "title": "Prism gRPC URL",
+        "description": "Complete gRPC URL for Flight SQL connection (e.g., grpc://host:8815 or grpc+tls://host:8815)",
+        "examples": ["grpc://localhost:8815", "grpc+tls://prism.company.com:8815"],
+        "pattern": "^grpc(\\+tls)?://[a-zA-Z0-9._-]+(:[0-9]+)?$",
+        "order": 0
+      },
+      "http_url": {
+        "type": "string",
+        "title": "Prism HTTP URL",
+        "description": "HTTP URL for Prism REST API used for token generation and file uploads (e.g., http://host:9815)",
+        "examples": ["http://localhost:9815", "https://prism.company.com:9815"],
+        "pattern": "^https?://[a-zA-Z0-9._-]+(:[0-9]+)?$",
+        "order": 1
+      },
+      "token": {
+        "type": "string",
+        "title": "Bearer Token",
+        "description": "Prism authentication token (format: prism_cs_...)",
+        "airbyte_secret": true,
+        "order": 2
+      },
+      "tenant_id": {
+        "type": "string",
+        "title": "Tenant ID",
+        "description": "Unique identifier for multi-tenant data isolation",
+        "examples": ["company-a", "acme-corp"],
+        "order": 3
+      },
+      "batch_size": {
+        "type": "integer",
+        "title": "Batch Size",
+        "description": "Number of records to buffer before flushing to Prism",
+        "default": 10000,
+        "minimum": 100,
+        "maximum": 100000,
+        "order": 4
+      },
+      "timeout": {
+        "type": "integer",
+        "title": "Query Timeout (seconds)",
+        "description": "Maximum time to wait for query execution",
+        "default": 300,
+        "minimum": 10,
+        "maximum": 3600,
+        "order": 5
+      }
+    }
+  },
+  "supportsIncremental": true,
+  "supportsNormalization": false,
+  "supportsDBT": false,
+  "supported_destination_sync_modes": ["overwrite", "append", "append_dedup"]
+}
