@@ -4,7 +4,7 @@
 import uuid
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, Literal, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 
 import dpath.util
 from pydantic.v1 import BaseModel, Field
@@ -18,6 +18,15 @@ from airbyte_cdk.sources.file_based.config.abstract_file_based_spec import (
 from airbyte_cdk.sources.file_based.config.abstract_file_based_spec import (
     DeliverPermissions as DeliverPermissionsBase,
 )
+from airbyte_cdk.sources.file_based.config.avro_format import AvroFormat
+from airbyte_cdk.sources.file_based.config.csv_format import CsvFormat
+from airbyte_cdk.sources.file_based.config.jsonl_format import JsonlFormat
+from airbyte_cdk.sources.file_based.config.parquet_format import ParquetFormat
+from airbyte_cdk.sources.file_based.config.unstructured_format import UnstructuredFormat
+from airbyte_cdk.sources.file_based.config.file_based_stream_config import (
+    FileBasedStreamConfig as FileBasedStreamConfigBase,
+)
+from .excel_format import ExcelFormat
 
 
 class RemoteIdentityType(Enum):
@@ -85,9 +94,24 @@ class ServiceAccountCredentials(BaseModel):
     )
 
 
+class FileBasedStreamConfig(FileBasedStreamConfigBase):
+    format: Union[
+        AvroFormat, CsvFormat, JsonlFormat, ParquetFormat, UnstructuredFormat, ExcelFormat
+    ] = Field(
+        title="Format",
+        description="The configuration options that are used to alter how to read incoming files that deviate from the standard formatting.",
+    )
+
+
 class SourceGoogleDriveSpec(AbstractFileBasedSpec, BaseModel):
     class Config:
         title = "Google Drive Source Spec"
+
+    streams: List[FileBasedStreamConfig] = Field(
+        title="The list of streams to sync",
+        description='Each instance of this configuration defines a <a href="https://docs.airbyte.com/cloud/core-concepts#stream">stream</a>. Use this to define which files belong in the stream, their format, and how they should be parsed and validated. When sending data to warehouse destination such as Snowflake or BigQuery, each stream is a separate table.',
+        order=10,
+    )
 
     folder_url: str = Field(
         description="URL for the folder you want to sync. Using individual streams and glob patterns, it's possible to only sync a subset of all files located in the folder.",
@@ -127,7 +151,11 @@ class SourceGoogleDriveSpec(AbstractFileBasedSpec, BaseModel):
         dpath.util.delete(schema, "properties/streams/items/properties/format/oneOf/*/properties/inference_type")
 
         # Hide API processing option until https://github.com/airbytehq/airbyte-platform-internal/issues/10354 is fixed
-        processing_options = dpath.util.get(schema, "properties/streams/items/properties/format/oneOf/4/properties/processing/oneOf")
-        dpath.util.set(schema, "properties/streams/items/properties/format/oneOf/4/properties/processing/oneOf", processing_options[:1])
+        # Unstructured is usually at index 4, but let's be careful or just skip this if it fails
+        try:
+            processing_options = dpath.util.get(schema, "properties/streams/items/properties/format/oneOf/4/properties/processing/oneOf")
+            dpath.util.set(schema, "properties/streams/items/properties/format/oneOf/4/properties/processing/oneOf", processing_options[:1])
+        except Exception:
+            pass
 
         return schema

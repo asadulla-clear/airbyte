@@ -9,13 +9,17 @@ from airbyte_cdk import AdvancedAuth, ConfiguredAirbyteCatalog, ConnectorSpecifi
 from airbyte_cdk.models import AuthFlowType, OauthConnectorInputSpecification
 from airbyte_cdk.sources.file_based.file_based_source import FileBasedSource
 from airbyte_cdk.sources.file_based.stream.cursor.default_file_based_cursor import DefaultFileBasedCursor
+from airbyte_cdk.sources.file_based.file_types import default_parsers
 from source_google_drive.spec import SourceGoogleDriveSpec
 from source_google_drive.stream_permissions_reader import SourceGoogleDriveStreamPermissionsReader
 from source_google_drive.stream_reader import SourceGoogleDriveStreamReader
+from .excel_format import ExcelFormat
+from .excel_parser import ExcelParser
 
 
 class SourceGoogleDrive(FileBasedSource):
     def __init__(self, catalog: Optional[ConfiguredAirbyteCatalog], config: Optional[Mapping[str, Any]], state: Optional[TState]):
+        parsers = {**default_parsers, ExcelFormat: ExcelParser()}
         super().__init__(
             stream_reader=SourceGoogleDriveStreamReader(),
             spec_class=SourceGoogleDriveSpec,
@@ -24,6 +28,7 @@ class SourceGoogleDrive(FileBasedSource):
             state=state,
             cursor_cls=DefaultFileBasedCursor,
             stream_permissions_reader=SourceGoogleDriveStreamPermissionsReader(),
+            parsers=parsers,
         )
 
     def spec(self, *args: Any, **kwargs: Any) -> ConnectorSpecification:
