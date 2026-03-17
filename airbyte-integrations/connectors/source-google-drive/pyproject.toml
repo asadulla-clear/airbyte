@@ -23,6 +23,8 @@ google-auth-oauthlib = "==1.1.0"
 google-api-python-client-stubs = "==1.18.0"
 airbyte-cdk = {extras = ["file-based"], version = "^7.0.1"}
 pyxlsb = ">=1.0.10"
+polars = ">=0.20.0"
+fastexcel = ">=0.10.0"
 
 
 [tool.poetry.scripts]

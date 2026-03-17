@@ -122,41 +122,52 @@ class ExcelParser(FileTypeParser):
                     logger.error(f"Error streaming XLSB file {file.uri}: {e}")
                     return
         else:
-            # Fallback for XLSX/XLS using pandas
+            # High-performance Polars + Calamine engine for XLSX/XLSX
+            import polars as pl
             with stream_reader.open_file(file, self.file_read_mode, None, logger) as fp:
                 try:
                     content = fp.read()
                     data_stream = io.BytesIO(content)
                     del content
-                    df_dict = pd.read_excel(data_stream, sheet_name=sheet_name if sheet_name else None)
+                    
+                    # Read all sheets or specific sheet using Polars
+                    # The 'calamine' engine is written in Rust and is extremely fast.
+                    try:
+                        df_dict = pl.read_excel(
+                            data_stream, 
+                            sheet_name=sheet_name if sheet_name else None,
+                            engine="calamine"
+                        )
+                    except Exception as e:
+                        logger.warning(f"Calamine engine failed, falling back to default: {e}")
+                        df_dict = pl.read_excel(data_stream, sheet_name=sheet_name if sheet_name else None)
+                        
                     data_stream.close()
                 except Exception as e:
-                    logger.error(f"Error reading Excel file {file.uri}: {e}")
+                    logger.error(f"Error reading Excel file {file.uri} via Polars: {e}")
                     return
 
-                def clean_df(df: pd.DataFrame) -> pd.DataFrame:
-                    df = df.dropna(how="all", axis=0).dropna(how="all", axis=1)
-                    unnamed_cols = [c for c in df.columns if str(c).startswith("Unnamed:")]
-                    for col in unnamed_cols:
-                        if df[col].isnull().all():
-                            df = df.drop(columns=[col])
-                    return df
+                def process_df(df: pl.DataFrame, label: str) -> Iterable[Dict[str, Any]]:
+                    # Polars equivalent of dropna(how="all")
+                    # We filter out rows where all columns are null
+                    df = df.filter(~pl.all_horizontal(pl.all().is_null()))
+                    
+                    # Convert to list of dicts for Airbyte
+                    for r in df.to_dicts():
+                        # Add sheet name and filter out "phantom" null columns
+                        cleaned_record = {k: v for k, v in r.items() if v is not None}
+                        if cleaned_record:
+                            cleaned_record["excel_sheet_name"] = label
+                            yield cleaned_record
 
-                if isinstance(df_dict, pd.DataFrame):
-                    df = clean_df(df_dict)
+                if isinstance(df_dict, pl.DataFrame):
                     sheet_label = str(sheet_name) if sheet_name else "0"
-                    for i, r in enumerate(df.to_dict(orient="records")):
-                        r["excel_sheet_name"] = sheet_label
-                        yield r
-                        if limit and i + 1 >= limit:
-                            return
+                    yield from process_df(df_dict, sheet_label)
                 elif isinstance(df_dict, dict):
                     count = 0
-                    for s, d_orig in df_dict.items():
-                        df = clean_df(d_orig)
-                        for r in df.to_dict(orient="records"):
-                            r["excel_sheet_name"] = str(s)
-                            yield r
+                    for s, df in df_dict.items():
+                        for record in process_df(df, str(s)):
+                            yield record
                             count += 1
                             if limit and count >= limit:
                                 return
