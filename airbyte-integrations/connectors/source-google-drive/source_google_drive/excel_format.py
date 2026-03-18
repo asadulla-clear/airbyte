@@ -18,3 +18,11 @@ class ExcelFormat(BaseModel):
         description="The name of the sheet you want to sync. Leave empty to sync all sheets.",
         default=None,
     )
+
+    split_sheets: bool = Field(
+        title="Split Sheets",
+        description="If True, each sheet in the Excel file will be synced as a separate table. Requires sheet_name to be empty.",
+        default=False,
+        airbyte_hidden=False,
+        order=1,
+    )
