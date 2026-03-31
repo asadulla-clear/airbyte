@@ -28,10 +28,13 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.bson.*;
+import org.bson.conversions.Bson;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -72,7 +75,7 @@ public class InitialSnapshotHandler {
           String shardingField = config.getShardingField();
           
           if (shardingField != null && !shardingField.isEmpty()) {
-            Set<String> authorizedCollections = MongoUtil.getAuthorizedCollections(database.getMongoClient(), database.getName());
+            Set<String> authorizedCollections = MongoUtil.getAuthorizedCollections(database);
             if (!authorizedCollections.contains(streamName)) {
                 for (String authColl : authorizedCollections) {
                     if (streamName.startsWith(authColl + "_")) {
@@ -96,14 +99,16 @@ public class InitialSnapshotHandler {
             }
           }
 
-          final var collection = database.getCollection(collectionName);
-          final Bson shardingFilter = shardValue != null ? Filters.eq(shardingField, shardValue) : null;
+          final String resolvedCollectionName = collectionName;
+          final String resolvedShardValue = shardValue;
+          final var collection = database.getCollection(resolvedCollectionName);
+          final Bson shardingFilter = resolvedShardValue != null ? Filters.eq(shardingField, resolvedShardValue) : null;
           
           final var fields = Projections.fields(Projections.include(CatalogHelpers.getTopLevelFieldNames(airbyteStream).stream().toList()));
           final var idTypes = aggregateIdField(collection);
           if (idTypes.size() > 1) {
             LOGGER.warn("The _id fields in this collection are not consistently typed, which may lead to data loss (collection = {}).",
-                collectionName);
+                resolvedCollectionName);
             AirbyteTraceMessageUtility
                 .emitAnalyticsTrace(new AirbyteAnalyticsTraceMessage().withType(MULTIPLE_ID_TYPES_ANALYTICS_MESSAGE_KEY).withValue("1"));
           }
@@ -111,7 +116,7 @@ public class InitialSnapshotHandler {
           idTypes.stream().findFirst().ifPresent(idType -> {
             if (IdType.findByBsonType(idType).isEmpty()) {
               throw new ConfigErrorException("Only _id fields with the following types are currently supported: " + IdType.SUPPORTED
-                  + " (collection = " + collectionName + ").");
+                  + " (collection = " + resolvedCollectionName + ").");
             }
           });
 

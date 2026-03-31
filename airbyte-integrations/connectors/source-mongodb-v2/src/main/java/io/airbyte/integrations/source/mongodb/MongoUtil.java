@@ -32,6 +32,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.Set;
@@ -83,6 +84,20 @@ public class MongoUtil {
    * @param databaseName The name of the database to query for authorized collections.
    * @return The set of authorized collection names (may be empty).
    */
+  public static Set<String> getAuthorizedCollections(final MongoDatabase database) {
+    final Document document = database.runCommand(new Document("listCollections", 1)
+        .append("authorizedCollections", true)
+        .append("nameOnly", true))
+        .append("filter", "{ 'type': 'collection' }");
+    return document.toBsonDocument()
+        .get("cursor").asDocument()
+        .getArray("firstBatch")
+        .stream()
+        .map(bsonValue -> bsonValue.asDocument().getString("name").getValue())
+        .filter(MongoUtil::isSupportedCollection)
+        .collect(Collectors.toSet());
+  }
+
   public static Set<String> getAuthorizedCollections(final MongoClient mongoClient, final String databaseName) {
     /*
      * db.runCommand ({listCollections: 1.0, authorizedCollections: true, nameOnly: true }) the command
