@@ -50,7 +50,14 @@ public class MongoDbSource extends BaseConnector implements Source {
     AirbyteExceptionHandler.addThrowableForDeinterpolation(MongoCommandException.class);
     final Source source = new MongoDbSource();
     LOGGER.info("starting source: {}", MongoDbSource.class);
-    new IntegrationRunner(source).run(args);
+
+    // Some versions of the Airbyte worker pass command as positional args (e.g., "spec")
+    // but the IntegrationRunner in CDK 0.48.9 expects flags (e.g., "--spec").
+    final String[] effectiveArgs = (args.length > 0 && !args[0].startsWith("-"))
+        ? new String[] {"--" + args[0]}
+        : args;
+
+    new IntegrationRunner(source).run(effectiveArgs);
     LOGGER.info("completed source: {}", MongoDbSource.class);
   }
 
