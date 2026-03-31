@@ -151,6 +151,7 @@ public class MongoDbInitialLoadRecordIterator extends AbstractIterator<Document>
             .cursor();
   }
 
+  private Bson buildFilter() {
     Bson gtFilter = currentState
         // Full refresh streams that finished set their id to null
         // This tells us to start over
