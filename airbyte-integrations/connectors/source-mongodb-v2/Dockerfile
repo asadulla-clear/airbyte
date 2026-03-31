@@ -7,7 +7,7 @@ WORKDIR /airbyte
 COPY . .
 
 # Build only the MongoDB V2 connector
-RUN ./gradlew :airbyte-integrations:connectors:source-mongodb-v2:assemble --no-daemon
+RUN ./gradlew :airbyte-integrations:connectors:source-mongodb-v2:assemble -x :airbyte-integrations:connectors:source-mongodb-v2:dockerBuildx --no-daemon
 
 # Stage 2: Create the final image
 # Base image from metadata.yaml
