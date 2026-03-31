@@ -120,12 +120,32 @@ public class MongoUtil {
                                                       final String databaseName,
                                                       final Integer sampleSize,
                                                       final boolean isSchemaEnforced,
-                                                      final Integer discoverTimeout) {
+                                                      final Integer discoverTimeout,
+                                                      final String shardingField) {
     final Set<String> authorizedCollections = getAuthorizedCollections(mongoClient, databaseName);
     return authorizedCollections.parallelStream()
-        .map(collectionName -> discoverFields(collectionName, mongoClient, databaseName, sampleSize, isSchemaEnforced, discoverTimeout))
-        .filter(Optional::isPresent)
-        .map(Optional::get)
+        .flatMap(collectionName -> {
+          if (shardingField != null && !shardingField.isEmpty()) {
+            final MongoCollection<Document> collection = mongoClient.getDatabase(databaseName).getCollection(collectionName);
+            final List<Object> shardValues = new ArrayList<>();
+            try {
+              collection.distinct(shardingField, Object.class).into(shardValues);
+            } catch (Exception e) {
+              LOGGER.warn("Failed to discover shards for collection {}: {}", collectionName, e.getMessage());
+            }
+
+            if (!shardValues.isEmpty()) {
+              return shardValues.stream()
+                  .filter(Objects::nonNull)
+                  .map(shard -> discoverFields(collectionName, mongoClient, databaseName, sampleSize, isSchemaEnforced, discoverTimeout, shard.toString()))
+                  .filter(Optional::isPresent)
+                  .map(Optional::get);
+            }
+          }
+          return Stream.of(discoverFields(collectionName, mongoClient, databaseName, sampleSize, isSchemaEnforced, discoverTimeout, null))
+              .filter(Optional::isPresent)
+              .map(Optional::get);
+        })
         .map(stream -> stream.withIsResumable(true))
         .collect(Collectors.toList());
   }
@@ -302,7 +322,8 @@ public class MongoUtil {
                                                         final String databaseName,
                                                         final Integer sampleSize,
                                                         final boolean isSchemaEnforced,
-                                                        final Integer discoverTimeout) {
+                                                        final Integer discoverTimeout,
+                                                        final String shardValue) {
     /*
      * Fetch the keys/types from the first N documents and the last N documents from the collection.
      * This is an attempt to "survey" the documents in the collection for variance in the schema keys.
@@ -316,9 +337,11 @@ public class MongoUtil {
       // exists on every record).
       discoveredFields = new HashSet<>(getFieldsForSchemaless(mongoCollection, discoverTimeout));
     }
+    String sanitizedShardValue = shardValue != null ? shardValue.replaceAll("[^a-zA-Z0-9]", "_") : null;
+    final String streamName = sanitizedShardValue != null ? collectionName + "_" + sanitizedShardValue : collectionName;
     return Optional
         .ofNullable(
-            !discoveredFields.isEmpty() ? createAirbyteStream(collectionName, databaseName, new ArrayList<>(discoveredFields), isSchemaEnforced)
+            !discoveredFields.isEmpty() ? createAirbyteStream(streamName, databaseName, new ArrayList<>(discoveredFields), isSchemaEnforced)
                 : null);
   }
 

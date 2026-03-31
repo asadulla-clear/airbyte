@@ -117,6 +117,10 @@ public record MongoDbSourceConfig(JsonNode rawConfig) {
     }
   }
 
+  public String getShardingField() {
+    return rawConfig.has(SHARDING_FIELD_CONFIGURATION_KEY) ? rawConfig.get(SHARDING_FIELD_CONFIGURATION_KEY).asText() : null;
+  }
+
   private void addAdvancedPropertiesToDatabaseConfig(JsonNode dbConfig) {
     ((ObjectNode) dbConfig).put(UPDATE_CAPTURE_MODE, getUpdateCaptureMode());
   }

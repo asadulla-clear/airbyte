@@ -58,7 +58,20 @@ public class MongoDbDebeziumEventConverter implements DebeziumEventConverter {
       default -> throw new IllegalArgumentException("Unsupported MongoDB change event operation '" + operation + "'.");
     };
 
-    return DebeziumEventConverter.buildAirbyteMessage(source, cdcMetadataInjector, emittedAt, data);
+    AirbyteMessage message = DebeziumEventConverter.buildAirbyteMessage(source, cdcMetadataInjector, emittedAt, data);
+    
+    String shardingField = config.has(MongoConstants.SHARDING_FIELD_CONFIGURATION_KEY) 
+        ? config.get(MongoConstants.SHARDING_FIELD_CONFIGURATION_KEY).asText() : null;
+        
+    if (shardingField != null && !shardingField.isEmpty() && data.has(shardingField)) {
+      String shardValue = data.get(shardingField).asText();
+      if (shardValue != null && !shardValue.isEmpty()) {
+        String sanitizedShardValue = shardValue.replaceAll("[^a-zA-Z0-9]", "_");
+        message.getRecord().setStream(message.getRecord().getStream() + "_" + sanitizedShardValue);
+      }
+    }
+    
+    return message;
   }
 
   private static JsonNode formatMongoDbDebeziumData(final JsonNode before,
@@ -122,7 +135,11 @@ public class MongoDbDebeziumEventConverter implements DebeziumEventConverter {
     final String streamNamespace = cdcMetadataInjector.namespace(source);
     final String streamName = cdcMetadataInjector.name(source);
     return configuredAirbyteCatalog.getStreams().stream()
-        .filter(s -> streamName.equals(s.getStream().getName()) && streamNamespace.equals(s.getStream().getNamespace()))
+        .filter(s -> {
+          String catalogStreamName = s.getStream().getName();
+          return streamNamespace.equals(s.getStream().getNamespace()) &&
+              (streamName.equals(catalogStreamName) || catalogStreamName.startsWith(streamName + "_"));
+        })
         .map(CatalogHelpers::getTopLevelFieldNames)
         .flatMap(Set::stream)
         .collect(Collectors.toSet());

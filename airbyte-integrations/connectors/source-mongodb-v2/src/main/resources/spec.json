@@ -211,6 +211,13 @@
         "max": 24,
         "order": 14,
         "group": "advanced"
+      },
+      "sharding_field": {
+        "type": "string",
+        "title": "Sharding Field (Advanced)",
+        "description": "The field used to shard a collection into multiple streams (e.g. 'workspace'). If provided, the connector will discover separate streams for each unique value of this field.",
+        "order": 15,
+        "group": "advanced"
       }
     },
     "groups": [

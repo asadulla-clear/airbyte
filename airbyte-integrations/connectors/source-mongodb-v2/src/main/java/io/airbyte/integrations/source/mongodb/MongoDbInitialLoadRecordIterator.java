@@ -44,6 +44,7 @@ public class MongoDbInitialLoadRecordIterator extends AbstractIterator<Document>
   private final Bson fields;
   // Represents the number of rows to get with each query.
   private final int chunkSize;
+  private final Bson shardingFilter;
 
   private Optional<MongoDbStreamState> currentState;
 
@@ -61,6 +62,7 @@ public class MongoDbInitialLoadRecordIterator extends AbstractIterator<Document>
                                    final Optional<MongoDbStreamState> existingState,
                                    final boolean isEnforceSchema,
                                    final int chunkSize,
+                                   final Bson shardingFilter,
                                    final Instant startInstant,
                                    final Optional<Duration> cdcInitialLoadTimeout) {
     this.collection = collection;
@@ -68,6 +70,7 @@ public class MongoDbInitialLoadRecordIterator extends AbstractIterator<Document>
     this.currentState = existingState;
     this.isEnforceSchema = isEnforceSchema;
     this.chunkSize = chunkSize;
+    this.shardingFilter = shardingFilter;
     // lazy init mongo cursor, otherwise it will risk time out (10 minutes).
     this.currentIterator = null;
     this.startInstant = startInstant;
@@ -148,12 +151,7 @@ public class MongoDbInitialLoadRecordIterator extends AbstractIterator<Document>
             .cursor();
   }
 
-  private Bson buildFilter() {
-    // The filter determines the starting point of this iterator based on the state of this collection.
-    // If a state exists, it will use that state to create a query akin to
-    // "where _id > [last saved state] order by _id ASC".
-    // If no state exists, it will create a query akin to "where 1=1 order by _id ASC"
-    return currentState
+    Bson gtFilter = currentState
         // Full refresh streams that finished set their id to null
         // This tells us to start over
         .filter(state -> state.id() != null)
@@ -167,6 +165,11 @@ public class MongoDbInitialLoadRecordIterator extends AbstractIterator<Document>
             }))
         // if nothing was found, return a new BsonDocument
         .orElseGet(BsonDocument::new);
+
+    if (shardingFilter != null && !shardingFilter.equals(new BsonDocument())) {
+      return Filters.and(shardingFilter, gtFilter);
+    }
+    return gtFilter;
   }
 
   private boolean shouldBuildNextQuery() {

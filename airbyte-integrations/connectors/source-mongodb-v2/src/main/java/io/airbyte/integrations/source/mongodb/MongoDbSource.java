@@ -136,7 +136,7 @@ public class MongoDbSource extends BaseConnector implements Source {
         List<AirbyteStream> allStreams = new ArrayList<>();
         for (String databaseName : databaseNames) {
           LOGGER.info("Discovering collections in database: {}", databaseName);
-          List<AirbyteStream> streams = MongoUtil.getAirbyteStreams(mongoClient, databaseName, sampleSize, isSchemaEnforced, discoverTimeout);
+          List<AirbyteStream> streams = MongoUtil.getAirbyteStreams(mongoClient, databaseName, sampleSize, isSchemaEnforced, discoverTimeout, sourceConfig.getShardingField());
           allStreams.addAll(streams);
         }
 

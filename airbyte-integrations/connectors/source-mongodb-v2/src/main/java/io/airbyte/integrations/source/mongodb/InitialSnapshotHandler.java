@@ -64,9 +64,41 @@ public class InitialSnapshotHandler {
         .stream()
         .filter(airbyteStream -> airbyteStream.getStream().getNamespace().equals(database.getName()))
         .map(airbyteStream -> {
-          final var collectionName = airbyteStream.getStream().getName();
-          final var namespace = airbyteStream.getStream().getNamespace();
+          String streamName = airbyteStream.getStream().getName();
+          final String namespace = airbyteStream.getStream().getNamespace();
+          
+          String collectionName = streamName;
+          String shardValue = null;
+          String shardingField = config.getShardingField();
+          
+          if (shardingField != null && !shardingField.isEmpty()) {
+            Set<String> authorizedCollections = MongoUtil.getAuthorizedCollections(database.getMongoClient(), database.getName());
+            if (!authorizedCollections.contains(streamName)) {
+                for (String authColl : authorizedCollections) {
+                    if (streamName.startsWith(authColl + "_")) {
+                        if (shardValue == null || authColl.length() > collectionName.length()) {
+                            collectionName = authColl;
+                            // The suffix is the SANITIZED shard value
+                            String sanitizedSuffix = streamName.substring(authColl.length() + 1);
+                            
+                            // To find the ORIGINAL shard value, we query the distinct values and pick the one that matches after sanitization
+                            List<Object> distinctValues = new ArrayList<>();
+                            database.getCollection(authColl).distinct(shardingField, Object.class).into(distinctValues);
+                            for (Object val : distinctValues) {
+                                if (val != null && Objects.toString(val).replaceAll("[^a-zA-Z0-9]", "_").equals(sanitizedSuffix)) {
+                                    shardValue = Objects.toString(val);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+          }
+
           final var collection = database.getCollection(collectionName);
+          final Bson shardingFilter = shardValue != null ? Filters.eq(shardingField, shardValue) : null;
+          
           final var fields = Projections.fields(Projections.include(CatalogHelpers.getTopLevelFieldNames(airbyteStream).stream().toList()));
           final var idTypes = aggregateIdField(collection);
           if (idTypes.size() > 1) {
@@ -89,7 +121,7 @@ public class InitialSnapshotHandler {
 
           final Optional<CollectionStatistics> collectionStatistics = MongoUtil.getCollectionStatistics(database, airbyteStream);
           final var recordIterator = new MongoDbInitialLoadRecordIterator(collection, fields, existingState, isEnforceSchema,
-              MongoUtil.getChunkSizeForCollection(collectionStatistics, airbyteStream), emittedAt, cdcInitialLoadTimeout);
+              MongoUtil.getChunkSizeForCollection(collectionStatistics, airbyteStream), shardingFilter, emittedAt, cdcInitialLoadTimeout);
           final var stateIterator =
               new SourceStateIterator<>(recordIterator, airbyteStream, stateManager, new StateEmitFrequency(checkpointInterval,
                   MongoConstants.CHECKPOINT_DURATION));
