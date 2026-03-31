@@ -1,30 +1,13 @@
-# Stage 1: Build the Java connector
-FROM eclipse-temurin:21-jdk AS builder
-
-WORKDIR /airbyte
-# Copy the entire Airbyte submodule to satisfy Gradle dependencies
-# Note: The build context should be the root of the airbyte submodule (prism-connectors/airbyte)
-COPY . .
-
-# Build the connector, excluding all test, check, and Docker-related tasks to ensure a smooth build
-RUN ./gradlew :airbyte-integrations:connectors:source-mongodb-v2:assemble \
-    -x test \
-    -x integrationTest \
-    -x check \
-    -x javadoc \
-    -x dockerBuildImage \
-    -x dockerBuildx \
-    -x dockerCopyDistribution \
-    -x dockerCopyDockerfile \
-    --no-daemon
-
-# Stage 2: Create the final image
-# Base image from metadata.yaml
+# Final Stage: Create the final image
+# We build the Java artifacts on the host (GitHub runner) for speed and cache support.
 FROM airbyte/java-connector-base:2.0.1
 
 WORKDIR /airbyte
-# Copy the distribution tarball from the builder
-COPY --from=builder /airbyte/airbyte-integrations/connectors/source-mongodb-v2/build/distributions/airbyte-app.tar /airbyte/
+
+# Copy the distribution tarball from the host build directory
+# The path is relative to the build context root (prism-connectors/airbyte)
+COPY airbyte-integrations/connectors/source-mongodb-v2/build/distributions/airbyte-app.tar /airbyte/
+
 # Extract the tarball and set up the directory structure
 RUN tar -xvf /airbyte/airbyte-app.tar --strip-components=1 -C /airbyte && rm /airbyte/airbyte-app.tar
 
