@@ -6,12 +6,13 @@ WORKDIR /airbyte
 # Note: The build context should be the root of the airbyte submodule (prism-connectors/airbyte)
 COPY . .
 
-# Build only the MongoDB V2 connector, ensuring all resources like spec.json are bundled
+# Build the connector, excluding all Docker-related tasks to avoid nested failures
 RUN ./gradlew :airbyte-integrations:connectors:source-mongodb-v2:build \
     -x test \
-    -x :airbyte-integrations:connectors:source-mongodb-v2:docker \
-    -x :airbyte-integrations:connectors:source-mongodb-v2:dockerBuildx \
-    -x :airbyte-integrations:connectors:source-mongodb-v2:copyArtifacts \
+    -x dockerBuildImage \
+    -x dockerBuildx \
+    -x dockerCopyDistribution \
+    -x dockerCopyDockerfile \
     --no-daemon
 
 # Stage 2: Create the final image
