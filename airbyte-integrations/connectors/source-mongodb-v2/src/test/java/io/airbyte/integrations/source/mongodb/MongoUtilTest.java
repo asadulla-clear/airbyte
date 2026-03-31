@@ -235,7 +235,7 @@ public class MongoUtilTest {
     when(aggregateIterable.allowDiskUse(anyBoolean())).thenReturn(aggregateIterable);
 
     final List<AirbyteStream> streams =
-        MongoUtil.getAirbyteStreams(mongoClient, databaseName, DEFAULT_DISCOVER_SAMPLE_SIZE, true, DEFAULT_STREAM_DISCOVER_TIMEOUT_SEC);
+        MongoUtil.getAirbyteStreams(mongoClient, databaseName, DEFAULT_DISCOVER_SAMPLE_SIZE, true, DEFAULT_STREAM_DISCOVER_TIMEOUT_SEC, null);
     assertNotNull(streams);
     assertEquals(1, streams.size());
     assertEquals(11, streams.get(0).getJsonSchema().get(AIRBYTE_STREAM_PROPERTIES).size());
