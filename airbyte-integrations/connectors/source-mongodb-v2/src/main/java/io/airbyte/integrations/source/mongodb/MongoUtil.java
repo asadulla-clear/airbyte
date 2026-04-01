@@ -207,15 +207,27 @@ public class MongoUtil {
   /**
    * Retrieves the statistics for the collection represented by the provided stream.
    *
-   * @param mongoClient The {@link MongoClient} used to retrieve statistics from MongoDB.
+   * @param mongoDatabase The {@link MongoDatabase} used to retrieve statistics.
    * @param stream The stream that represents the collection.
    * @return The {@link CollectionStatistics} of the collection or an empty {@link Optional} if the
    *         statistics cannot be retrieved.
    */
   public static Optional<CollectionStatistics> getCollectionStatistics(final MongoDatabase mongoDatabase, final ConfiguredAirbyteStream stream) {
+    return getCollectionStatistics(mongoDatabase, stream.getStream().getName());
+  }
+
+  /**
+   * Retrieves the statistics for the collection name.
+   *
+   * @param mongoDatabase The {@link MongoDatabase} used to retrieve statistics.
+   * @param collectionName The name of the collection.
+   * @return The {@link CollectionStatistics} of the collection or an empty {@link Optional} if the
+   *         statistics cannot be retrieved.
+   */
+  public static Optional<CollectionStatistics> getCollectionStatistics(final MongoDatabase mongoDatabase, final String collectionName) {
     try {
       final Map<String, Object> collStats = Map.of(MongoConstants.STORAGE_STATS_KEY, Map.of(), MongoConstants.COUNT_KEY, Map.of());
-      final MongoCollection<Document> collection = mongoDatabase.getCollection(stream.getStream().getName());
+      final MongoCollection<Document> collection = mongoDatabase.getCollection(collectionName);
       final AggregateIterable<Document> output = collection.aggregate(List.of(new Document("$collStats", collStats)));
 
       try (final MongoCursor<Document> cursor = output.allowDiskUse(true).cursor()) {
@@ -244,10 +256,13 @@ public class MongoUtil {
   }
 
   public static int getChunkSizeForCollection(final Optional<CollectionStatistics> collectionStatistics, final ConfiguredAirbyteStream stream) {
+    return getChunkSizeForCollection(collectionStatistics, stream.getStream().getName());
+  }
+
+  public static int getChunkSizeForCollection(final Optional<CollectionStatistics> collectionStatistics, final String collectionName) {
     // If table size info could not be calculated, a default chunk size will be provided.
     if (collectionStatistics.isEmpty() || shouldUseDefaultChunkSize(collectionStatistics.get())) {
-      LOGGER.info("Chunk size could not be determined for: {}.{}, defaulting to {} rows", stream.getStream().getNamespace(),
-          stream.getStream().getName(), DEFAULT_CHUNK_SIZE);
+      LOGGER.info("Chunk size could not be determined for: {}, defaulting to {} rows", collectionName, DEFAULT_CHUNK_SIZE);
       return DEFAULT_CHUNK_SIZE;
     }
     CollectionStatistics stats = collectionStatistics.get();
@@ -255,8 +270,7 @@ public class MongoUtil {
     final long totalBytes = stats.size().longValue();
     final long bytesPerRow = totalBytes / totalRows;
     if (bytesPerRow == 0) {
-      LOGGER.info("Chunk size could not be determined for: {}.{}, defaulting to {} rows", stream.getStream().getNamespace(),
-          stream.getStream().getName(), DEFAULT_CHUNK_SIZE);
+      LOGGER.info("Chunk size could not be determined for: {}, defaulting to {} rows", collectionName, DEFAULT_CHUNK_SIZE);
       return DEFAULT_CHUNK_SIZE;
     }
     // Otherwise the chunk size is essentially the limit - the number of rows to fetch per query. This

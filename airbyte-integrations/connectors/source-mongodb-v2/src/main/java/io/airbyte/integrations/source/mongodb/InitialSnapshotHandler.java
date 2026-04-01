@@ -134,9 +134,9 @@ public class InitialSnapshotHandler {
           final Optional<MongoDbStreamState> existingState =
               stateManager.getStreamState(airbyteStream.getStream().getName(), airbyteStream.getStream().getNamespace());
 
-          final Optional<CollectionStatistics> collectionStatistics = MongoUtil.getCollectionStatistics(database, airbyteStream);
+          final Optional<CollectionStatistics> collectionStatistics = MongoUtil.getCollectionStatistics(database, resolvedCollectionName);
           final var recordIterator = new MongoDbInitialLoadRecordIterator(collection, fields, existingState, isEnforceSchema,
-              MongoUtil.getChunkSizeForCollection(collectionStatistics, airbyteStream), shardingFilter, emittedAt, cdcInitialLoadTimeout);
+              MongoUtil.getChunkSizeForCollection(collectionStatistics, resolvedCollectionName), shardingFilter, emittedAt, cdcInitialLoadTimeout);
           final var stateIterator =
               new SourceStateIterator<>(recordIterator, airbyteStream, stateManager, new StateEmitFrequency(checkpointInterval,
                   MongoConstants.CHECKPOINT_DURATION));
@@ -145,13 +145,13 @@ public class InitialSnapshotHandler {
           List<AutoCloseableIterator<AirbyteMessage>> itList = Stream.of(iterator).collect(Collectors.toList());
           if (decorateWithStartedStatus) {
             itList.addFirst(new StreamStatusTraceEmitterIterator(
-                new AirbyteStreamStatusHolder(new io.airbyte.protocol.models.AirbyteStreamNameNamespacePair(collectionName, namespace),
+                new AirbyteStreamStatusHolder(new io.airbyte.protocol.models.AirbyteStreamNameNamespacePair(airbyteStream.getStream().getName(), namespace),
                     AirbyteStreamStatusTraceMessage.AirbyteStreamStatus.STARTED)));
           }
 
           if (decorateWithCompletedStatus) {
             itList.addLast(new StreamStatusTraceEmitterIterator(
-                new AirbyteStreamStatusHolder(new io.airbyte.protocol.models.AirbyteStreamNameNamespacePair(collectionName, namespace),
+                new AirbyteStreamStatusHolder(new io.airbyte.protocol.models.AirbyteStreamNameNamespacePair(airbyteStream.getStream().getName(), namespace),
                     AirbyteStreamStatusTraceMessage.AirbyteStreamStatus.COMPLETE)));
           }
           return (itList.size() == 1) ? iterator : AutoCloseableIterators.concatWithEagerClose(itList);
