@@ -86,10 +86,20 @@ public class InitialSnapshotHandler {
                             
                             // To find the ORIGINAL shard value, we query the distinct values and pick the one that matches after sanitization
                             List<Object> distinctValues = new ArrayList<>();
-                            database.getCollection(authColl).distinct(shardingField, Object.class).into(distinctValues);
+                            try {
+                                database.getCollection(authColl).distinct(shardingField, String.class).into(distinctValues);
+                            } catch (Exception e) {
+                                LOGGER.warn("Failed to get distinct values for {} in sync: {}", authColl, e.getMessage());
+                            }
+                            
                             for (Object val : distinctValues) {
-                                if (val != null && Objects.toString(val).replaceAll("[^a-zA-Z0-9]", "_").equals(sanitizedSuffix)) {
-                                    shardValue = Objects.toString(val);
+                                String valStr = Objects.toString(val);
+                                if (val instanceof org.bson.types.Binary) {
+                                    valStr = java.util.UUID.nameUUIDFromBytes(((org.bson.types.Binary) val).getData()).toString();
+                                }
+                                
+                                if (val != null && valStr.replaceAll("[^a-zA-Z0-9]", "_").equals(sanitizedSuffix)) {
+                                    shardValue = valStr;
                                     break;
                                 }
                             }
