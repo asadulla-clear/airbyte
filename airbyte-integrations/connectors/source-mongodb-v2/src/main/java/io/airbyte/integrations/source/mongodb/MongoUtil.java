@@ -23,9 +23,11 @@ import com.mongodb.client.model.Projections;
 import io.airbyte.commons.exceptions.ConfigErrorException;
 import io.airbyte.protocol.models.Field;
 import io.airbyte.protocol.models.JsonSchemaType;
+import io.airbyte.protocol.models.v0.CatalogHelpers;
 import io.airbyte.protocol.models.v0.AirbyteStream;
 import io.airbyte.protocol.models.v0.ConfiguredAirbyteCatalog;
 import io.airbyte.protocol.models.v0.ConfiguredAirbyteStream;
+import io.airbyte.protocol.models.v0.SyncMode;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -87,8 +89,8 @@ public class MongoUtil {
   public static Set<String> getAuthorizedCollections(final MongoDatabase database) {
     final Document document = database.runCommand(new Document("listCollections", 1)
         .append("authorizedCollections", true)
-        .append("nameOnly", true))
-        .append("filter", "{ 'type': 'collection' }");
+        .append("nameOnly", true)
+        .append("filter", new Document("type", "collection")));
     return document.toBsonDocument()
         .get("cursor").asDocument()
         .getArray("firstBatch")
@@ -108,8 +110,8 @@ public class MongoUtil {
      */
     final Document document = mongoClient.getDatabase(databaseName).runCommand(new Document("listCollections", 1)
         .append("authorizedCollections", true)
-        .append("nameOnly", true))
-        .append("filter", "{ 'type': 'collection' }");
+        .append("nameOnly", true)
+        .append("filter", new Document("type", "collection")));
     return document.toBsonDocument()
         .get("cursor").asDocument()
         .getArray("firstBatch")
@@ -156,21 +158,11 @@ public class MongoUtil {
             if (!shardValues.isEmpty()) {
               return shardValues.stream()
                   .filter(Objects::nonNull)
-                  .map(shard -> {
-                      String shardStr = shard.toString();
-                      if (shard instanceof org.bson.types.Binary) {
-                          shardStr = java.util.UUID.nameUUIDFromBytes(((org.bson.types.Binary) shard).getData()).toString();
-                      }
-                      LOGGER.info("!!! SHARD DISCOVERY !!! Creating virtual stream for {}_{}", collectionName, shardStr);
-                      return discoverFields(collectionName, mongoClient, databaseName, sampleSize, isSchemaEnforced, discoverTimeout, shardStr);
-                  })
-                  .filter(Optional::isPresent)
-                  .map(Optional::get);
+                  .map(shard -> discoverFields(collectionName, mongoClient, databaseName, sampleSize, isSchemaEnforced, discoverTimeout, shard.toString()))
+                  .flatMap(Optional::stream);
             }
           }
-          return Stream.of(discoverFields(collectionName, mongoClient, databaseName, sampleSize, isSchemaEnforced, discoverTimeout, null))
-              .filter(Optional::isPresent)
-              .map(Optional::get);
+          return discoverFields(collectionName, mongoClient, databaseName, sampleSize, isSchemaEnforced, discoverTimeout, null).stream();
         })
         .map(stream -> stream.withIsResumable(true))
         .collect(Collectors.toList());
@@ -367,7 +359,8 @@ public class MongoUtil {
     final Set<Field> discoveredFields;
     final MongoCollection<Document> mongoCollection = mongoClient.getDatabase(databaseName).getCollection(collectionName);
     if (isSchemaEnforced) {
-      discoveredFields = new HashSet<>(getFieldsInCollection(mongoCollection, sampleSize, discoverTimeout));
+      final Bson filter = shardValue != null ? com.mongodb.client.model.Filters.eq(MongoConstants.SHARDING_FIELD_CONFIGURATION_KEY, shardValue) : null;
+      discoveredFields = new HashSet<>(getFieldsInCollection(mongoCollection, sampleSize, discoverTimeout, filter));
     } else {
       // In schemaless mode, we only sample one record as we're only interested in the _id field (which
       // exists on every record).
@@ -383,7 +376,8 @@ public class MongoUtil {
 
   private static Set<Field> getFieldsInCollection(final MongoCollection<Document> collection,
                                                   final Integer sampleSize,
-                                                  final Integer discoverTimeout) {
+                                                  final Integer discoverTimeout,
+                                                  final Bson filter) {
     final Set<Field> discoveredFields = new HashSet<>();
     final Map<String, Object> fieldsMap = Map.of("input", Map.of("$objectToArray", "$$ROOT"),
         "as", "each",
@@ -396,6 +390,9 @@ public class MongoUtil {
     groupMap.put("_id", "$fields");
 
     final List<Bson> aggregateList = new ArrayList<>();
+    if (filter != null) {
+      aggregateList.add(com.mongodb.client.model.Aggregates.match(filter));
+    }
     /*
      * Use sampling to reduce the time it takes to discover fields. Inspired by
      * https://www.mongodb.com/docs/compass/current/sampling/#sampling-method.

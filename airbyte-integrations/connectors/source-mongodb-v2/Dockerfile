@@ -12,4 +12,6 @@ COPY airbyte-app.tar /airbyte/
 RUN tar -xvf /airbyte/airbyte-app.tar --strip-components=1 -C /airbyte && rm /airbyte/airbyte-app.tar
 
 ENV AIRBYTE_ENTRYPOINT="/airbyte/bin/source-mongodb-v2"
+# Grant permissions for ThreadLocal cleanup (required for Java 21)
+ENV JAVA_OPTS="-XX:+ExitOnOutOfMemoryError -XX:MaxRAMPercentage=75.0 --add-opens=java.base/java.lang=ALL-UNNAMED"
 ENTRYPOINT ["/airbyte/bin/source-mongodb-v2"]
