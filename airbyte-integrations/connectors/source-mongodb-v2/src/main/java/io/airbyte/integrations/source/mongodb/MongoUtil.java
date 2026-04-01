@@ -240,12 +240,10 @@ public class MongoUtil {
             return Optional.of(new CollectionStatistics((Number) storageStats.get(MongoConstants.COLLECTION_STATISTICS_COUNT_KEY),
                 (Number) storageStats.get(MongoConstants.COLLECTION_STATISTICS_STORAGE_SIZE_KEY)));
           } else {
-            LOGGER.warn("Unable to estimate sync size:  statistics for {}.{} are missing.", stream.getStream().getNamespace(),
-                stream.getStream().getName());
+            LOGGER.warn("Unable to estimate sync size:  statistics for {} are missing.", collectionName);
           }
         } else {
-          LOGGER.warn("Unable to estimate sync size:  statistics for {}.{} are missing.", stream.getStream().getNamespace(),
-              stream.getStream().getName());
+          LOGGER.warn("Unable to estimate sync size:  statistics for {} are missing.", collectionName);
         }
       }
     } catch (final Exception e) {
@@ -278,12 +276,10 @@ public class MongoUtil {
     // correspond to roughly ~1GB of data.
     final int chunkSize = (int) (QUERY_TARGET_SIZE_GB / bytesPerRow);
     if (chunkSize <= 0) {
-      LOGGER.info("Chunk size could not be determined for: {}.{}, defaulting to {} rows", stream.getStream().getNamespace(),
-          stream.getStream().getName(), DEFAULT_CHUNK_SIZE);
+      LOGGER.info("Chunk size could not be determined for: {}, defaulting to {} rows", collectionName, DEFAULT_CHUNK_SIZE);
       return DEFAULT_CHUNK_SIZE;
     }
-    LOGGER.info("Chunk size determined for: {}.{}, to be {} rows", stream.getStream().getNamespace(),
-        stream.getStream().getName(), chunkSize);
+    LOGGER.info("Chunk size determined for: {}, to be {} rows", collectionName, chunkSize);
     return chunkSize;
   }
 
