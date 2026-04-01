@@ -51,11 +51,17 @@ public class MongoDbSource extends BaseConnector implements Source {
     final Source source = new MongoDbSource();
     LOGGER.info("starting source: {}", MongoDbSource.class);
 
-    // Some versions of the Airbyte worker pass command as positional args (e.g., "spec")
-    // but the IntegrationRunner in CDK 0.48.9 expects flags (e.g., "--spec").
-    final String[] effectiveArgs = (args.length > 0 && !args[0].startsWith("-"))
-        ? new String[] {"--" + args[0]}
-        : args;
+    // Some versions of the Airbyte worker pass command as positional args (e.g., "spec", "check")
+    // but the IntegrationRunner in CDK 0.48.9 expects flags (e.g., "--spec", "--check").
+    // We must preserve all subsequent arguments (like --config) after the initial command.
+    final String[] effectiveArgs;
+    if (args.length > 0 && !args[0].startsWith("-")) {
+      effectiveArgs = new String[args.length];
+      effectiveArgs[0] = "--" + args[0];
+      System.arraycopy(args, 1, effectiveArgs, 1, args.length - 1);
+    } else {
+      effectiveArgs = args;
+    }
 
     new IntegrationRunner(source).run(effectiveArgs);
     LOGGER.info("completed source: {}", MongoDbSource.class);
