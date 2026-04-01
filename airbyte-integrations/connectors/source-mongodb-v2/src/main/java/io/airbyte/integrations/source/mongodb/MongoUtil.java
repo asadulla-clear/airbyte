@@ -138,21 +138,28 @@ public class MongoUtil {
                                                       final Integer discoverTimeout,
                                                       final String shardingField) {
     final Set<String> authorizedCollections = getAuthorizedCollections(mongoClient, databaseName);
-    return authorizedCollections.parallelStream()
+    return authorizedCollections.stream()
         .flatMap(collectionName -> {
           if (shardingField != null && !shardingField.isEmpty()) {
             final MongoCollection<Document> collection = mongoClient.getDatabase(databaseName).getCollection(collectionName);
             final List<Object> shardValues = new ArrayList<>();
             try {
-              collection.distinct(shardingField, Object.class).into(shardValues);
+              LOGGER.info("Attempting to discover shards for collection {} using field {} (timeout: 120s)", collectionName, shardingField);
+              collection.distinct(shardingField, Object.class)
+                  .maxTime(120, java.util.concurrent.TimeUnit.SECONDS)
+                  .into(shardValues);
+              LOGGER.info("Found {} distinct values for {} in collection {}", shardValues.size(), shardingField, collectionName);
             } catch (Exception e) {
-              LOGGER.warn("Failed to discover shards for collection {}: {}", collectionName, e.getMessage());
+              LOGGER.error("Error discovering shards for collection {}: {}. Continuing with base stream.", collectionName, e.getMessage(), e);
             }
 
             if (!shardValues.isEmpty()) {
               return shardValues.stream()
                   .filter(Objects::nonNull)
-                  .map(shard -> discoverFields(collectionName, mongoClient, databaseName, sampleSize, isSchemaEnforced, discoverTimeout, shard.toString()))
+                  .map(shard -> {
+                      LOGGER.debug("Creating virtual stream for {}_{}", collectionName, shard);
+                      return discoverFields(collectionName, mongoClient, databaseName, sampleSize, isSchemaEnforced, discoverTimeout, shard.toString());
+                  })
                   .filter(Optional::isPresent)
                   .map(Optional::get);
             }
