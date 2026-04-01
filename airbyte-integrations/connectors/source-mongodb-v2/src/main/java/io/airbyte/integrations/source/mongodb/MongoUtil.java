@@ -144,31 +144,29 @@ public class MongoUtil {
             final MongoCollection<Document> collection = mongoClient.getDatabase(databaseName).getCollection(collectionName);
             final List<Object> shardValues = new ArrayList<>();
             try {
-              LOGGER.warn("!!! NUCLEAR DIAGNOSTIC !!! Searching shards for DB: {}, Collection: {}, Field: {}", databaseName, collectionName, shardingField);
-              collection.distinct(shardingField, Object.class)
+              LOGGER.warn("!!! SHARD DISCOVERY !!! Searching shards for DB: {}, Collection: {}, Field: {}", databaseName, collectionName, shardingField);
+              collection.distinct(shardingField, String.class)
                   .maxTime(120, java.util.concurrent.TimeUnit.SECONDS)
                   .into(shardValues);
-              LOGGER.warn("!!! NUCLEAR DIAGNOSTIC !!! Found {} distinct values in {}", shardValues.size(), collectionName);
+              LOGGER.warn("!!! SHARD DISCOVERY !!! Found {} distinct values in {}", shardValues.size(), collectionName);
             } catch (Exception e) {
-              throw new RuntimeException("!!! NUCLEAR ERROR !!! Failed to run distinct on " + collectionName + ": " + e.getMessage(), e);
+              LOGGER.warn("!!! SHARD DISCOVERY !!! Field '{}' not found or error in '{}'. Skipping sharding for this collection. Error: {}", shardingField, collectionName, e.getMessage());
             }
 
-            if (shardValues.isEmpty()) {
-              throw new RuntimeException("!!! NUCLEAR ERROR !!! Field '" + shardingField + "' returned 0 distinct values in collection '" + collectionName + "'. Please check if the field exists and is populated in the database.");
+            if (!shardValues.isEmpty()) {
+              return shardValues.stream()
+                  .filter(Objects::nonNull)
+                  .map(shard -> {
+                      String shardStr = shard.toString();
+                      if (shard instanceof org.bson.types.Binary) {
+                          shardStr = java.util.UUID.nameUUIDFromBytes(((org.bson.types.Binary) shard).getData()).toString();
+                      }
+                      LOGGER.info("!!! SHARD DISCOVERY !!! Creating virtual stream for {}_{}", collectionName, shardStr);
+                      return discoverFields(collectionName, mongoClient, databaseName, sampleSize, isSchemaEnforced, discoverTimeout, shardStr);
+                  })
+                  .filter(Optional::isPresent)
+                  .map(Optional::get);
             }
-
-            return shardValues.stream()
-                .filter(Objects::nonNull)
-                .map(shard -> {
-                    String shardStr = shard.toString();
-                    if (shard instanceof org.bson.types.Binary) {
-                        shardStr = java.util.UUID.nameUUIDFromBytes(((org.bson.types.Binary) shard).getData()).toString();
-                    }
-                    LOGGER.warn("!!! NUCLEAR DIAGNOSTIC !!! Shard Found: {}_{}", collectionName, shardStr);
-                    return discoverFields(collectionName, mongoClient, databaseName, sampleSize, isSchemaEnforced, discoverTimeout, shardStr);
-                })
-                .filter(Optional::isPresent)
-                .map(Optional::get);
           }
           return Stream.of(discoverFields(collectionName, mongoClient, databaseName, sampleSize, isSchemaEnforced, discoverTimeout, null))
               .filter(Optional::isPresent)
