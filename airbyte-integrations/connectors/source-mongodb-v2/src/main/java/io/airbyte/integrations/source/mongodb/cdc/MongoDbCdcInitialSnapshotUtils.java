@@ -137,6 +137,20 @@ public class MongoDbCdcInitialSnapshotUtils {
   }
 
   private static boolean isValidInitialSnapshotStatus(final SyncMode syncMode, final MongoDbStreamState state) {
+    // state.status() can be null when the checkpoint was written by an older connector version
+    // or when the per-stream state JSON is missing the status field after CDC has been running.
+    // ImmutableList.of().contains(null) throws NPE, so we guard explicitly.
+    //
+    // For INCREMENTAL: treat null as COMPLETE — the initial snapshot is done, CDC can resume
+    // from the last saved oplog position. This allows subsequent incremental syncs to succeed
+    // without requiring a manual stream reset.
+    //
+    // For FULL_REFRESH: treat null as invalid — the stream should be reset to re-run cleanly.
+    if (state.status() == null) {
+      LOGGER.warn("Stream state has a null status for sync mode {}. "
+          + "For INCREMENTAL, assuming snapshot is complete and allowing CDC to resume.", syncMode);
+      return SyncMode.INCREMENTAL.equals(syncMode);
+    }
     return syncModeToStatusValidationMap.get(syncMode).contains(state.status());
   }
 
