@@ -88,7 +88,17 @@ public class MongoDbCdcInitialSnapshotUtils {
     } else {
       // Find and filter out streams that have completed the initial snapshot
       final Set<AirbyteStreamNameNamespacePair> streamsStillInInitialSnapshot = stateManager.getStreamStates().entrySet().stream()
-          .filter(e -> InitialSnapshotStatus.IN_PROGRESS.equals(e.getValue().status()))
+          .filter(e -> {
+             if (InitialSnapshotStatus.IN_PROGRESS.equals(e.getValue().status())) {
+                 return true;
+             }
+             if (e.getValue().status() == null) {
+                 // If status is null, it's either an old finished stream, or a brand new stream that got a blank state {}.
+                 // If there's no valid CDC state, it's definitively new and needs an initial snapshot.
+                 return stateManager.getCdcState() == null || stateManager.getCdcState().state() == null;
+             }
+             return false;
+          })
           .map(Map.Entry::getKey)
           .collect(Collectors.toSet());
 
