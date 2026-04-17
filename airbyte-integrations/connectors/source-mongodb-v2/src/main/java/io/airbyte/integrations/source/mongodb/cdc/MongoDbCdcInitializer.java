@@ -135,14 +135,16 @@ public class MongoDbCdcInitializer {
     }
 
     final MongoDbCdcState cdcState;
+    final boolean isNewState = stateManager.getCdcState() == null ||
+        stateManager.getCdcState().state() == null ||
+        stateManager.getCdcState().state().isNull();
+
     if (needsStateMigration && extractedResumeTokenString != null) {
       JsonNode cleanDebeziumState = MongoDbDebeziumStateUtil.formatState(serverId, extractedResumeTokenString);
       // Corruption/migration: create a clean state using extracted resume token string
       cdcState = new MongoDbCdcState(cleanDebeziumState, isEnforceSchema);
       LOGGER.info("Created clean MongoDbCdcState from extracted resume token");
-    } else if (stateManager.getCdcState() == null ||
-        stateManager.getCdcState().state() == null ||
-        stateManager.getCdcState().state().isNull()) {
+    } else if (isNewState) {
       // No cdc state: create a new state from initial Debezium state.
       cdcState = new MongoDbCdcState(initialDebeziumState, isEnforceSchema);
       LOGGER.info("Created new MongoDbCdcState from initial state");
@@ -191,7 +193,7 @@ public class MongoDbCdcInitializer {
                 : stateManager.getCdcState();
 
     final List<ConfiguredAirbyteStream> initialSnapshotStreams =
-        MongoDbCdcInitialSnapshotUtils.getStreamsForInitialSnapshot(mongoClient, stateManager, incrementalOnlyStreamsCatalog, savedOffsetIsValid);
+        MongoDbCdcInitialSnapshotUtils.getStreamsForInitialSnapshot(mongoClient, stateManager, incrementalOnlyStreamsCatalog, savedOffsetIsValid, isNewState);
     final InitialSnapshotHandler initialSnapshotHandler = new InitialSnapshotHandler();
 
     final Set<AirbyteStreamNameNamespacePair> streamsStillInInitialSnapshot = stateManager.getStreamStates().entrySet().stream()

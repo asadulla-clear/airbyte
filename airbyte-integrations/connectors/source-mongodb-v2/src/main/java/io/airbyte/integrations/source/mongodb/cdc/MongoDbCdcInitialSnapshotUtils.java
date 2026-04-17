@@ -67,7 +67,7 @@ public class MongoDbCdcInitialSnapshotUtils {
                                                                            final MongoClient mongoClient,
                                                                            final MongoDbStateManager stateManager,
                                                                            final ConfiguredAirbyteCatalog fullCatalog,
-                                                                           final boolean savedOffsetIsValid) {
+                                                                           final boolean savedOffsetIsValid, final boolean isNewState) {
 
     final List<ConfiguredAirbyteStream> initialSnapshotStreams = new ArrayList<>();
 
@@ -94,8 +94,8 @@ public class MongoDbCdcInitialSnapshotUtils {
              }
              if (e.getValue().status() == null) {
                  // If status is null, it's either an old finished stream, or a brand new stream that got a blank state {}.
-                 // If there's no valid CDC state, it's definitively new and needs an initial snapshot.
-                 return stateManager.getCdcState() == null || stateManager.getCdcState().state() == null;
+                 // If the global state had no valid CDC resume token initially, it's definitively new and needs an initial snapshot.
+                 return isNewState;
              }
              return false;
           })
